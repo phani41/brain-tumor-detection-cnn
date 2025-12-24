@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Brain Tumor Detection</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+    <h1>Brain Tumor Detection System</h1>
+    <p>CNN-based MRI Classification</p>
+</header>
+
+<main>
+
+    <!-- Upload -->
+    <section class="card">
+        <h3>Upload MRI Scan</h3>
+
+        <div class="upload-box" id="dropZone">
+            <p>Drag & drop MRI image here</p>
+
+            <div class="actions">
+                <button onclick="openFile()">Browse</button>
+                <button onclick="predict()">Analyze</button>
+            </div>
+
+            <input type="file" id="imageInput" accept="image/*" hidden>
+        </div>
+
+        <p class="hint">Supported formats: JPG, PNG</p>
+    </section>
+
+    <!-- Preview -->
+    <section class="card">
+        <h3>Uploaded Image</h3>
+        <div class="image-frame">
+            <img id="preview">
+        </div>
+    </section>
+
+    <!-- Result -->
+    <section class="card result-card" id="result">
+        <h3>Diagnosis Result</h3>
+
+        <p id="textResult"></p>
+
+        <div class="confidence-wrapper">
+            <span>Confidence</span>
+            <div class="confidence-bar">
+                <div id="confidenceBar"></div>
+            </div>
+        </div>
+
+        <h4>Class Probabilities</h4>
+        <div id="probabilityList"></div>
+
+        <p class="note">
+            AI-assisted result. Clinical review recommended.
+        </p>
+    </section>
+
+    <p id="loading">Analyzing MRI image...</p>
+
+</main>
+
+<footer>
+    ⚠️ Educational use only. Not a substitute for professional diagnosis.
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
