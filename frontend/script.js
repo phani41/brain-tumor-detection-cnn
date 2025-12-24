@@ -101,7 +101,7 @@ async function predict() {
 
     try {
         // Connect to Flask backend (ensure backend is running on port 5000)
-        const res = await fetch("http://127.0.0.1:5000/predict", {
+        const res = await fetch("https://brain-tumor-backend.onrender.com/predict", {
             method: "POST",
             body: formData,
             // Add timeout to prevent hanging requests
