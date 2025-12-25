@@ -5,6 +5,9 @@ import tensorflow as tf
 import gdown
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 
 app = Flask(__name__)
 CORS(app)
