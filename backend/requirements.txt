@@ -1,7 +1,7 @@
 flask
 flask-cors
 tensorflow-cpu
-numpy
 opencv-python
-gunicorn
+numpy
 gdown
+gunicorn
