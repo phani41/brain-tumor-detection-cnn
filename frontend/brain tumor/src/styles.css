@@ -1,0 +1,39 @@
+body {
+  background: #ffffff;
+  font-family: Arial, sans-serif;
+  color: #111;
+}
+
+.card {
+  border: 1px solid #ddd;
+  padding: 16px;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.comparison-grid,
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.chart-card {
+  background: #fff;
+  padding: 16px;
+  border: 1px solid #ddd;
+}
+
+.best-model {
+  margin-top: 20px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  background: #fff;
+}
+
+.model-info {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid #ddd;
+}

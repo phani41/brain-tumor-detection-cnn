@@ -1,82 +1,152 @@
-import os
-import numpy as np
-import cv2
-import tensorflow as tf
-import gdown
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+import tensorflow as tf
+import numpy as np
+from PIL import Image
+import os
 
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as mobilenet_preprocess
+from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
 
+# ---------------------------------
+# App setup
+# ---------------------------------
 app = Flask(__name__)
 CORS(app)
 
-# ===============================
-# MODEL DOWNLOAD CONFIG
-# ===============================
-MODEL_DIR = "model"
-MODEL_PATH = os.path.join(MODEL_DIR, "brain_tumor_model.keras")
-MODEL_URL = "https://drive.google.com/uc?id=1Cav92Wcw8UBANF2npwP6q1VopX6ocf4Q"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Create model directory if not exists
-os.makedirs(MODEL_DIR, exist_ok=True)
+MOBILENET_PATH = os.path.join(BASE_DIR, "model", "brain_tumor_model.keras")
+EFFICIENTNET_PATH = os.path.join(BASE_DIR, "model", "brain_tumor_efficientnet.keras")
 
-# Download model if missing
-if not os.path.exists(MODEL_PATH):
-    print("🔽 Downloading model from Google Drive...")
-    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
-    print("✅ Model downloaded successfully")
+CLASSES = ["glioma", "meningioma", "notumor", "pituitary"]
 
-# Load model
-print("🧠 Loading model...")
-model = tf.keras.models.load_model(MODEL_PATH)
-print("✅ Model loaded")
+# ---------------------------------
+# Load models
+# ---------------------------------
+print("🧠 Loading models...")
 
-# Class labels (IMPORTANT: must match training order)
-CLASS_NAMES = ["glioma", "meningioma", "notumor", "pituitary"]
+mobilenet_model = tf.keras.models.load_model(MOBILENET_PATH)
+efficientnet_model = tf.keras.models.load_model(EFFICIENTNET_PATH)
 
-# ===============================
-# IMAGE PREPROCESSING
-# ===============================
-def preprocess_image(image):
-    image = cv2.resize(image, (224, 224))
-    image = image / 255.0
-    image = np.expand_dims(image, axis=0)
-    return image
+print("✅ Models loaded successfully")
 
-# ===============================
-# ROUTES
-# ===============================
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok"})
+# ---------------------------------
+# Image preprocessing
+# ---------------------------------
+def preprocess_image(file):
+    try:
+        img = Image.open(file).convert("RGB")
+    except:
+        return None, None
 
+    img = img.resize((224, 224))
+    img_array = np.array(img)
+
+    mobilenet_img = mobilenet_preprocess(img_array.copy())
+    efficientnet_img = efficientnet_preprocess(img_array.copy())
+
+    mobilenet_img = np.expand_dims(mobilenet_img, axis=0)
+    efficientnet_img = np.expand_dims(efficientnet_img, axis=0)
+
+    return mobilenet_img, efficientnet_img
+
+# ---------------------------------
+# Health check
+# ---------------------------------
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"status": "Brain Tumor API running"}), 200
+
+# ---------------------------------
+# MobileNet prediction
+# ---------------------------------
 @app.route("/predict", methods=["POST"])
 def predict():
     if "image" not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
 
-    file = request.files["image"]
-    img_array = np.frombuffer(file.read(), np.uint8)
-    image = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+    mob_img, _ = preprocess_image(request.files["image"])
+    if mob_img is None:
+        return jsonify({"error": "Invalid image file"}), 400
 
-    processed = preprocess_image(image)
-    predictions = model.predict(processed)[0]
+    preds = mobilenet_model.predict(mob_img)[0]
+    idx = int(np.argmax(preds))
+    conf = float(preds[idx]) * 100
 
-    result = {
-        "prediction": CLASS_NAMES[int(np.argmax(predictions))],
-        "confidence": float(np.max(predictions)),
+    return jsonify({
+        "model": "MobileNetV2",
+        "prediction": CLASSES[idx],
+        "confidence": round(conf, 2),
         "probabilities": {
-            CLASS_NAMES[i]: float(predictions[i]) for i in range(len(CLASS_NAMES))
+            CLASSES[i]: round(float(preds[i]) * 100, 2)
+            for i in range(len(CLASSES))
         }
-    }
+    })
 
-    return jsonify(result)
+# ---------------------------------
+# Compare models
+# ---------------------------------
+@app.route("/compare", methods=["POST"])
+def compare_models():
+    if "image" not in request.files:
+        return jsonify({"error": "No image uploaded"}), 400
 
-# ===============================
-# START SERVER
-# ===============================
+    mob_img, eff_img = preprocess_image(request.files["image"])
+    if mob_img is None or eff_img is None:
+        return jsonify({"error": "Invalid image file"}), 400
+
+    mob_preds = mobilenet_model.predict(mob_img)[0]
+    eff_preds = efficientnet_model.predict(eff_img)[0]
+
+    mob_idx = int(np.argmax(mob_preds))
+    eff_idx = int(np.argmax(eff_preds))
+
+    mob_conf = float(mob_preds[mob_idx]) * 100
+    eff_conf = float(eff_preds[eff_idx]) * 100
+
+    # ---------------------------------
+    # Best model decision
+    # ---------------------------------
+    if mob_conf >= eff_conf and mob_conf >= 50:
+        best_model = "MobileNetV2"
+        best_prediction = CLASSES[mob_idx]
+    elif eff_conf >= 50:
+        best_model = "EfficientNet"
+        best_prediction = CLASSES[eff_idx]
+    else:
+        best_model = "Uncertain"
+        best_prediction = "Low confidence – image may not be MRI"
+
+    return jsonify({
+        "mobilenet": {
+            "prediction": CLASSES[mob_idx],
+            "confidence": round(mob_conf, 2),
+            "probabilities": {
+                CLASSES[i]: round(float(mob_preds[i]) * 100, 2)
+                for i in range(len(CLASSES))
+            }
+        },
+        "efficientnet": {
+            "prediction": CLASSES[eff_idx],
+            "confidence": round(eff_conf, 2),
+            "probabilities": {
+                CLASSES[i]: round(float(eff_preds[i]) * 100, 2)
+                for i in range(len(CLASSES))
+            },
+            "warning": (
+                "Low confidence – EfficientNet unreliable"
+                if eff_conf < 40 else "OK"
+            )
+        },
+        "best_model": {
+            "model": best_model,
+            "prediction": best_prediction
+        }
+    })
+
+# ---------------------------------
+# Run server
+# ---------------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
