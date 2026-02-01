@@ -7,9 +7,6 @@ venv/
 env/
 
 # ML model files
-*.h5
-*.keras
 
 # OS files
-.DS_Store
-Thumbs.db
+
